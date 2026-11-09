@@ -1,0 +1,4 @@
+* text=auto
+*.png binary
+# Preserve the upstream distribution verbatim, including its whitespace.
+vendor/** -text -whitespace
