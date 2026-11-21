@@ -1,8 +1,8 @@
 {
   "name": "assembly-training-lab",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "A browser-based mechanical assembly teaching prototype with experimental WebXR support.",
+  "description": "A browser-based assembly teaching prototype with exploded views, staged demonstrations, spatial guides and experimental WebXR support.",
   "type": "module",
   "license": "MIT",
   "engines": { "node": ">=22" },

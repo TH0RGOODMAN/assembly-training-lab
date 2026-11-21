@@ -32,15 +32,27 @@ function fixture() {
     scene = new THREE.Scene(); partsRoot = new THREE.Group(); scene.add(partsRoot);
     camera = new THREE.PerspectiveCamera(43, 1280 / 720, .01, 100); scene.add(camera);
     hud = new THREE.Object3D(); scene.add(hud);
-    for (const p of PARTS) { const obj = new THREE.Group(); obj.userData.partId = p.id; models.set(p.id, obj); partsRoot.add(obj); }
+    for (const p of PARTS) {
+      const obj = new THREE.Group();
+      obj.userData.partId = p.id;
+      const vr = new THREE.Group();
+      obj.add(vr);
+      obj.userData.visualRoot = vr;
+      models.set(p.id, obj);
+      partsRoot.add(obj);
+      const pv = new THREE.Group();
+      previewParts.set(p.id, pv);
+    }
     const callbacks = new Map();
     const inputControllers = [new THREE.Group(), new THREE.Group()];
     renderer = { xr: { isPresenting: true, getController: i => inputControllers[i], getControllerGrip: () => new THREE.Group(), addEventListener: (name, callback) => callbacks.set(name, callback) } };
     resetModels(); createXRControllers(); state = startSession(createSession('training'), 1000);
     globalThis.api = {
-      scene, partsRoot, camera, models, controllers, heldBy, callbacks, renderer, rig, raycaster,
-      grab, release, releaseAll, getPose, resetSession, setControllerRay,
+      scene, partsRoot, camera, models, previewParts, controllers, heldBy, callbacks, renderer, rig, raycaster,
+      grab, release, releaseAll, getPose, resetSession, setControllerRay, attemptPlacement,
+      togglePreview, setExplodePercent, stepShowcaseStage, toggleDemoPlay, updateShowcaseDemo, snapAnimations, shakeAnimations,
       getState: () => state, getSelected: () => selectedId,
+      getPreviewing: () => previewing, getExplode: () => explodeFactor,
       hit: id => { forcedHitId = id; },
       initialPoses,
     };
@@ -174,4 +186,136 @@ test('session start shares the camera/controller rig; session end restores deskt
   assertRotationNear(api.getPose(id).quaternion, before.quaternion);
   assert.equal(api.heldBy.size, 0);
   assert.equal(api.getState().attempts.length, 0);
+});
+
+test('visual snap and error shake animations preserve exact authoritative getPose() coordinates', () => {
+  const api = fixture(), id = 'left-support', target = domain.PARTS.find(p => p.id === id);
+  const obj = api.models.get(id);
+  // Trigger an error submission slightly outside angle threshold
+  obj.position.set(...target.position);
+  obj.rotation.set(0, Math.PI / 6, 0);
+  const beforeError = api.getPose(id);
+  api.attemptPlacement(id);
+  assert.equal(api.getState().errors.orientation, 1);
+  assert.equal(api.shakeAnimations.has(id), true);
+  assertVectorNear(api.getPose(id).position, beforeError.position);
+  assertRotationNear(api.getPose(id).quaternion, beforeError.quaternion);
+
+  // Move within tolerance (30 mm offset) and install; logical pose locks immediately to exact target
+  obj.position.set(target.position[0] + 0.03, target.position[1], target.position[2]);
+  obj.quaternion.set(...target.quaternion);
+  api.attemptPlacement(id);
+  assert.equal(api.getState().installed.includes(id), true);
+  assert.equal(api.snapAnimations.has(id), true);
+  assertVectorNear(api.getPose(id).position, target.position);
+  assertRotationNear(api.getPose(id).quaternion, target.quaternion);
+});
+
+test('showcase exploded preview is isolated from scoring and strictly blocked in running assessment', () => {
+  const api = fixture();
+  api.renderer.xr.isPresenting = false;
+  api.togglePreview();
+  assert.equal(api.getPreviewing(), true);
+  api.setExplodePercent(100);
+  assert.equal(api.getExplode(), 1);
+  // Shaft in previewParts is elevated vertically by +0.32m; real session state stays untouched
+  assert.ok(api.previewParts.get('shaft').position.y > 1.45);
+  assert.equal(api.getState().installed.length, 0);
+  assert.equal(api.getState().attempts.length, 0);
+  api.stepShowcaseStage();
+  assert.equal(api.getState().attempts.length, 0);
+
+  // Switch to running assessment mode: preview must be blocked
+  api.resetSession('assessment', true);
+  assert.equal(api.getPreviewing(), false);
+  api.togglePreview();
+  assert.equal(api.getPreviewing(), false);
+});
+
+test('each selected showcase stage survives subsequent render updates and preserves the session', () => {
+  const api = fixture();
+  api.renderer.xr.isPresenting = false;
+  api.togglePreview();
+  const sessionBefore = JSON.stringify(api.getState());
+  const realPosesBefore = domain.PARTS.map(p => api.getPose(p.id));
+  for (const stage of [1, 2, 3, 0]) {
+    api.stepShowcaseStage();
+    const poses = domain.PARTS.map(p => api.previewParts.get(p.id).position.toArray());
+    for (let frame = 0; frame < 60; frame++) api.updateShowcaseDemo(1 / 60);
+    domain.PARTS.forEach((part, i) => {
+      const actual = api.previewParts.get(part.id).position.toArray();
+      assertVectorNear(actual, poses[i]);
+      if (part.stage <= stage) assertVectorNear(actual, part.position);
+      else assert.ok(new THREE.Vector3(...actual).distanceTo(new THREE.Vector3(...part.position)) > .1);
+      assertVectorNear(api.getPose(part.id).position, realPosesBefore[i].position);
+    });
+    assert.equal(JSON.stringify(api.getState()), sessionBefore);
+  }
+});
+
+test('showcase playback pause holds its exact pose, resumes, and remains assembled after completion', () => {
+  const api = fixture();
+  api.renderer.xr.isPresenting = false;
+  api.togglePreview();
+  api.toggleDemoPlay();
+  api.updateShowcaseDemo(5);
+  const pausedPoses = domain.PARTS.map(p => api.previewParts.get(p.id).position.toArray());
+  const shaft = domain.PARTS.find(p => p.id === 'shaft');
+  assert.ok(api.previewParts.get('shaft').position.y > shaft.position[1]);
+  api.toggleDemoPlay();
+  for (let frame = 0; frame < 60; frame++) api.updateShowcaseDemo(1 / 60);
+  domain.PARTS.forEach((part, i) => assertVectorNear(api.previewParts.get(part.id).position.toArray(), pausedPoses[i]));
+  api.toggleDemoPlay();
+  api.updateShowcaseDemo(.5);
+  assert.ok(api.previewParts.get('shaft').position.y < pausedPoses[2][1]);
+  api.updateShowcaseDemo(20);
+  for (let frame = 0; frame < 60; frame++) api.updateShowcaseDemo(1 / 60);
+  for (const part of domain.PARTS) assertVectorNear(api.previewParts.get(part.id).position.toArray(), part.position);
+  assert.equal(api.getState().installed.length, 0);
+  assert.equal(api.getState().attempts.length, 0);
+});
+
+test('manual explode resets staged playback and preview re-entry starts at the assembled pose', () => {
+  const api = fixture();
+  api.renderer.xr.isPresenting = false;
+  api.togglePreview();
+  api.stepShowcaseStage();
+  api.setExplodePercent(50);
+  const manualPoses = domain.PARTS.map(p => api.previewParts.get(p.id).position.toArray());
+  const shaftTarget = domain.PARTS.find(p => p.id === 'shaft').position;
+  assertVectorNear(api.previewParts.get('shaft').position.toArray(), [shaftTarget[0], shaftTarget[1] + .16, shaftTarget[2]]);
+  api.updateShowcaseDemo(1);
+  domain.PARTS.forEach((part, i) => assertVectorNear(api.previewParts.get(part.id).position.toArray(), manualPoses[i]));
+  api.toggleDemoPlay();
+  api.updateShowcaseDemo(.5);
+  assert.ok(api.previewParts.get('shaft').position.y > manualPoses[2][1]);
+  api.togglePreview();
+  api.updateShowcaseDemo(10);
+  api.togglePreview();
+  api.updateShowcaseDemo(1);
+  for (const part of domain.PARTS) assertVectorNear(api.previewParts.get(part.id).position.toArray(), part.position);
+  api.stepShowcaseStage();
+  api.resetSession('training');
+  assert.equal(api.getPreviewing(), false);
+  api.togglePreview();
+  api.updateShowcaseDemo(1);
+  for (const part of domain.PARTS) assertVectorNear(api.previewParts.get(part.id).position.toArray(), part.position);
+});
+
+test('WebXR controller haptics fire safely when connected and degrade cleanly when absent', () => {
+  const api = fixture(), c = prepareController(api, 0), id = 'left-support', target = domain.PARTS.find(p => p.id === id);
+  const pulses = [];
+  c.dispatchEvent({ type: 'connected', data: { gamepad: { hapticActuators: [{ pulse: (intensity, dur) => pulses.push([intensity, dur]) }] } } });
+  api.hit(id); api.grab(c);
+  assert.equal(pulses.length, 1);
+  setHeldToWorldPose(api, id, target.position, target.quaternion);
+  api.release(c, true);
+  assert.equal(pulses.length, 2);
+  assert.ok(pulses[1][0] > pulses[0][0]);
+
+  // Disconnect clears inputSource and subsequent grabs work without throwing
+  c.dispatchEvent({ type: 'disconnected' });
+  assert.equal(c.userData.inputSource, undefined);
+  api.hit('right-support'); api.grab(c);
+  assert.equal(api.heldBy.get('right-support'), c);
 });

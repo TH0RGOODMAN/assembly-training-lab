@@ -1,61 +1,255 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>虚拟装配实验室 · Assembly Training Lab</title>
-  <meta name="description" content="在浏览器中练习五件机械装配，理解工序、位置与姿态的关系。无需安装，支持桌面操作，附实验性 WebXR 入口。">
+  <meta name="description" content="在浏览器中探索五件机械装配：爆炸拆解、三阶段动画、空间引导、训练与考核。支持桌面操作，附实验性 WebXR 入口。">
   <link rel="icon" href="./favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="./styles.css">
   <script type="importmap">{"imports":{"three":"./vendor/three.module.js"}}</script>
 </head>
 <body>
   <header class="topbar">
-    <div class="brand"><span class="brand-icon">◈</span><div>虚拟装配实验室<small>VIRTUAL ASSEMBLY LAB</small></div></div>
+    <div class="brand">
+      <span class="brand-icon" aria-hidden="true">◈</span>
+      <div>虚拟装配实验室<small>VIRTUAL ASSEMBLY LAB</small></div>
+    </div>
     <a class="course" href="./about.html">项目说明与源码 ↗</a>
-    <button id="helpBtn" class="quiet">操作指南 <span class="key">?</span></button>
+    <div class="topbar-actions">
+      <button id="helpBtn" class="quiet">操作指南 <span class="key">?</span></button>
+    </div>
   </header>
   <main>
-    <section class="page-heading"><div><p class="eyebrow">实验 01 / 机械装配</p><h1>双支架转轴组件</h1><p class="subtitle">在三维空间中理解装配顺序，练习零件定位与姿态调整。</p></div><div class="capabilities"><span id="xrStatus" class="pill">正在检测 VR</span><button id="vrBtn" class="outline" disabled>进入 VR</button></div></section>
-    <section class="first-steps" aria-label="第一次使用"><strong>第一次来？</strong><span>① 开始实验　② 选左支架　③ 拖动到绿色轮廓，Q / E 转向　④ 确认装配</span><a href="#startBtn">开始体验 ↓</a></section>
+    <section class="page-heading">
+      <div>
+        <p class="eyebrow">实验 01 / 机械装配与空间交互展示</p>
+        <h1>双支架转轴组件</h1>
+        <p class="subtitle">在三维精密实验台中理解三阶段装配顺序，通过空间对齐辅助、爆炸结构演示与多模态反馈练习定位和姿态控制。</p>
+      </div>
+      <div class="capabilities">
+        <span id="xrStatus" class="pill">正在检测 VR</span>
+        <button id="vrBtn" class="outline" disabled>进入 VR</button>
+      </div>
+    </section>
+
+    <section class="first-steps" aria-label="第一次使用"><strong>第一次来？</strong><span>① 结构展示看拆解　② 开始实验　③ 选择零件，拖到目标并调整朝向　④ 确认装配</span><a href="#startBtn">开始体验 ↓</a></section>
     <section class="workspace">
       <div class="scene-panel">
-        <div class="scene-toolbar"><span class="live-dot"></span><strong>交互实验台</strong><span id="sceneMode">桌面操作</span><div class="camera-controls"><button id="previewBtn" title="只观察完整组件，不计为操作成绩">成品示意</button><button data-view="perspective" title="恢复默认视角">全景</button><button data-view="front">正视</button><button data-view="top">俯视</button></div></div>
-        <ol class="assembly-stages" aria-label="装配阶段"><li data-stage="1"><span>1</span><strong>左右支架</strong><small>0 / 2</small></li><li data-stage="2"><span>2</span><strong>转轴</strong><small>0 / 1</small></li><li data-stage="3"><span>3</span><strong>两侧锁紧盖</strong><small>0 / 2</small></li></ol>
-        <div id="viewport" aria-label="三维装配实验台，选择零件后拖动定位。可使用下方按钮或键盘微调。">
-          <div class="scene-label"><span>01</span> ASSEMBLY WORKBENCH</div>
-          <div class="stage-note">安装区<span>上方绿色箭头为零件朝向基准</span></div>
-          <div class="scene-bottom"><span>左键拖动零件</span><i>·</i><span>右键环视</span><i>·</i><span>滚轮缩放</span></div>
-          <div id="sceneFallback" hidden>三维视图未能启动。请通过配套启动脚本访问，并使用支持 WebGL 的浏览器。详细信息会显示在下方。</div>
+        <div class="scene-toolbar">
+          <span class="live-dot" aria-hidden="true"></span>
+          <strong>交互实验台</strong>
+          <span id="sceneMode">桌面操作</span>
+          <div class="camera-controls">
+            <button id="previewBtn" title="查看三维爆炸图与三阶段分步装配动画（不计为实验成绩）">结构展示</button>
+            <span class="toolbar-sep" aria-hidden="true"></span>
+            <button data-view="perspective" class="active" title="恢复默认三维全景视角">全景</button>
+            <button data-view="front" title="切换至正视视角">正视</button>
+            <button data-view="side" title="切换至侧视视角">侧视</button>
+            <button data-view="top" title="切换至俯视视角">俯视</button>
+            <button id="focusBtn" title="平滑聚焦至当前选中零件" disabled>聚焦</button>
+            <span class="toolbar-sep" aria-hidden="true"></span>
+            <button id="soundBtn" class="active" aria-pressed="true" title="开关操作与装配提示音效">音效 开</button>
+            <button id="perfBtn" aria-pressed="false" title="显示或隐藏桌面实时渲染帧率与绘制统计">性能</button>
+          </div>
         </div>
+
+        <ol class="assembly-stages" aria-label="装配阶段">
+          <li data-stage="1"><span>1</span><strong>左右支架</strong><small>0 / 2</small></li>
+          <li data-stage="2"><span>2</span><strong>转轴</strong><small>0 / 1</small></li>
+          <li data-stage="3"><span>3</span><strong>两侧锁紧盖</strong><small>0 / 2</small></li>
+        </ol>
+
+        <div id="viewport" aria-label="三维装配实验台，选择零件后拖动定位。可使用下方按钮或键盘微调。">
+          <div class="scene-label"><span>01</span> PRECISION ASSEMBLY WORKBENCH</div>
+          <div id="perfOverlay" class="perf-overlay" hidden aria-live="off">
+            <div class="perf-title">桌面渲染监测 · 非头显实测</div>
+            <div class="perf-grid">
+              <span>FPS <b id="perfFps">--</b></span>
+              <span>帧耗时 <b id="perfMs">-- ms</b></span>
+              <span>绘制调用 <b id="perfCalls">--</b></span>
+              <span>三角面 <b id="perfTris">--</b></span>
+            </div>
+          </div>
+          <div class="stage-note">
+            安装区基准
+            <span>上方青绿箭头为零件朝向基准</span>
+          </div>
+          <div id="showcaseBar" class="showcase-bar" hidden aria-label="三维结构展示控制条">
+            <div class="showcase-top">
+              <span class="showcase-tag">结构展示 · 不计成绩</span>
+              <span id="showcaseCaption" class="showcase-caption">成品合装态 · 拖动滑块观察爆炸拆解，或播放三阶段装配演示</span>
+            </div>
+            <div class="showcase-controls">
+              <label class="explode-control" for="explodeSlider">
+                <span>爆炸拆解</span>
+                <input id="explodeSlider" type="range" min="0" max="100" value="0" aria-label="爆炸拆解展开比例">
+                <b id="explodeValue">0%</b>
+              </label>
+              <div class="showcase-buttons">
+                <button id="demoPlayBtn" class="showcase-primary">分步演示 ▶</button>
+                <button id="demoStepBtn" class="showcase-quiet">下一阶段</button>
+                <button id="demoResetBtn" class="showcase-quiet">复位成品</button>
+              </div>
+            </div>
+          </div>
+          <div id="sceneBottom" class="scene-bottom">
+            <span>左键拖动零件</span><i>·</i>
+            <span>右键环视</span><i>·</i>
+            <span>滚轮缩放</span><i>·</i>
+            <span>W/A/S/D/R/F 平移 · Q/E 旋转 · Enter 确认</span>
+          </div>
+          <div id="sceneFallback" hidden>三维视图未能启动。请通过在线网址或本地 HTTP 服务访问，并使用支持 WebGL 的浏览器。详细信息会显示在下方。</div>
+        </div>
+
         <div class="control-deck">
-          <div class="selected-info"><div class="small-label">当前零件</div><strong id="selectedName">尚未选择</strong><span id="poseInfo">开始实验后，点击零件或右侧列表</span></div>
-          <div id="alignmentChecks" class="alignment-checks" hidden aria-label="训练模式下的装配条件"><span id="sequenceCheck"></span><span id="positionCheck"></span><span id="orientationCheck"></span></div>
+          <div class="selected-info">
+            <div class="small-label">当前零件</div>
+            <strong id="selectedName">尚未选择</strong>
+            <span id="poseInfo">开始实验后，点击实验台零件或右侧任务卡片</span>
+          </div>
+          <div id="alignmentChecks" class="alignment-checks" hidden aria-label="训练模式下的装配条件">
+            <span id="sequenceCheck" class="check-chip"></span>
+            <span id="positionCheck" class="check-chip"></span>
+            <span id="orientationCheck" class="check-chip"></span>
+            <div class="tolerance-meters" aria-hidden="true">
+              <span class="meter-label">距离容差</span>
+              <span class="meter-bar"><i id="posMeterFill"></i></span>
+              <span class="meter-label">朝向容差</span>
+              <span class="meter-bar"><i id="angMeterFill"></i></span>
+            </div>
+          </div>
           <div class="adjustments">
-            <div class="adjust-group"><span class="small-label">平面微调 · 10 mm</span><div class="button-row"><button data-nudge="z-" title="向后 W" aria-label="向后移动">↑</button><button data-nudge="x-" title="向左 A" aria-label="向左移动">←</button><button data-nudge="x+" title="向右 D" aria-label="向右移动">→</button><button data-nudge="z+" title="向前 S" aria-label="向前移动">↓</button></div></div>
-            <div class="adjust-group"><span class="small-label">高度 · 10 mm</span><div class="button-row"><button data-nudge="y-" aria-label="降低零件">−</button><button data-nudge="y+" aria-label="升高零件">+</button></div></div>
-            <div class="adjust-group"><span class="small-label">旋转 · 15°</span><div class="button-row"><select id="rotationAxis" aria-label="旋转轴"><option value="y">Y 轴</option><option value="x">X 轴</option><option value="z">Z 轴</option></select><button data-rotate="-1" title="Q" aria-label="旋转负15度">↶</button><button data-rotate="1" title="E" aria-label="旋转正15度">↷</button></div></div>
+            <div class="adjust-group">
+              <span class="small-label">平面微调 · 10 mm</span>
+              <div class="button-row">
+                <button data-nudge="z-" aria-label="向后移动" title="向后 W（按住 Shift 为 50 mm）">↑</button>
+                <button data-nudge="x-" aria-label="向左移动" title="向左 A（按住 Shift 为 50 mm）">←</button>
+                <button data-nudge="x+" aria-label="向右移动" title="向右 D（按住 Shift 为 50 mm）">→</button>
+                <button data-nudge="z+" aria-label="向前移动" title="向前 S（按住 Shift 为 50 mm）">↓</button>
+              </div>
+            </div>
+            <div class="adjust-group">
+              <span class="small-label">高度 · 10 mm</span>
+              <div class="button-row">
+                <button data-nudge="y-" aria-label="降低零件" title="降低 F（按住 Shift 为 50 mm）">−</button>
+                <button data-nudge="y+" aria-label="升高零件" title="升高 R（按住 Shift 为 50 mm）">+</button>
+              </div>
+            </div>
+            <div class="adjust-group">
+              <span class="small-label">旋转 · 15°</span>
+              <div class="button-row">
+                <select id="rotationAxis" aria-label="旋转轴">
+                  <option value="y">Y 轴</option>
+                  <option value="x">X 轴</option>
+                  <option value="z">Z 轴</option>
+                </select>
+                <button data-rotate="-1" aria-label="旋转负15度" title="逆时针旋转 Q">↶</button>
+                <button data-rotate="1" aria-label="旋转正15度" title="顺时针旋转 E">↷</button>
+              </div>
+            </div>
             <button id="placeBtn" class="primary" disabled>确认装配 <span class="key">↵</span></button>
           </div>
         </div>
       </div>
+
       <aside class="lesson-panel">
-        <div class="mode-switch" aria-label="实验模式"><button id="trainingMode" class="active">训练模式</button><button id="assessmentMode">考核模式</button></div>
-        <p id="modeDescription" class="mode-description">显示目标轮廓与对齐提示，逐步掌握装配方法。</p>
-        <div class="stats"><div><span>实验用时</span><strong id="timer">00:00</strong></div><div><span id="scoreLabel">当前分数</span><strong id="score">100<small> / 100</small></strong></div></div>
-        <div class="progress-heading"><h2>装配任务</h2><span id="progressCount">0 / 5</span></div>
+        <div class="mode-switch" aria-label="实验模式">
+          <button id="trainingMode" class="active">训练模式</button>
+          <button id="assessmentMode">考核模式</button>
+        </div>
+        <p id="modeDescription" class="mode-description">显示全息目标轮廓、3D 空间引导线与实时容差提示，逐步掌握装配流程。</p>
+
+        <div class="stats">
+          <div><span>实验用时</span><strong id="timer">00:00</strong></div>
+          <div><span id="scoreLabel">当前分数</span><strong id="score">100<small> / 100</small></strong></div>
+        </div>
+
+        <div class="progress-heading">
+          <h2>装配任务</h2>
+          <span id="progressCount">0 / 5</span>
+        </div>
         <div class="progress-track"><div id="progressFill"></div></div>
+
         <div id="partsList" class="parts-list"></div>
-        <div id="feedback" class="feedback" role="status" aria-live="polite"><strong>准备好开始了吗？</strong><span>先装左右支架，再安装转轴，最后固定两侧锁紧盖。</span></div>
-        <div class="error-line"><span>错误记录</span><span>顺序 <b id="sequenceErrors">0</b></span><span>位置 <b id="positionErrors">0</b></span><span>姿态 <b id="orientationErrors">0</b></span></div>
+
+        <div id="feedback" class="feedback" role="status" aria-live="polite">
+          <strong>准备好开始了吗？</strong>
+          <span>可先点“结构展示”查看爆炸拆解与分步动画，再点击“开始实验”按支架 → 转轴 → 锁紧盖完成装配。</span>
+        </div>
+
+        <div class="error-line">
+          <span>错误记录</span>
+          <span>顺序 <b id="sequenceErrors">0</b></span>
+          <span>位置 <b id="positionErrors">0</b></span>
+          <span>姿态 <b id="orientationErrors">0</b></span>
+        </div>
+
         <button id="startBtn" class="primary wide">开始实验 <span>→</span></button>
-        <div class="secondary-actions"><button id="resetBtn" class="quiet">重新开始</button><button id="exportBtn" class="quiet">导出记录</button></div>
-        <details class="history"><summary>最近完成的实验 <span id="historyCount">0</span></summary><div id="historyList"></div><button id="clearHistoryBtn" class="quiet">清除本机历史</button></details>
+        <div class="secondary-actions">
+          <button id="resetBtn" class="quiet">重新开始</button>
+          <button id="exportBtn" class="quiet">导出记录</button>
+        </div>
+
+        <details class="history">
+          <summary>最近完成的实验 <span id="historyCount">0</span></summary>
+          <div id="historyList"></div>
+          <div class="history-footer">
+            <button id="clearHistoryBtn" class="quiet history-clear" hidden>清除本机记录</button>
+          </div>
+        </details>
       </aside>
     </section>
-    <footer><span>五个零件 · 三个装配阶段 · 训练 / 考核双模式</span><a href="./about.html">教学原型 · 使用说明、验证范围与开源许可 ↗</a></footer>
+
+    <footer>
+      <span>五个活动零件 · 三个装配阶段 · 爆炸演示 / 训练 / 考核模式 · 实验性 WebXR</span>
+      <a href="./about.html">教学原型 · 使用说明、验证范围与开源许可 ↗</a>
+    </footer>
   </main>
-  <dialog id="helpDialog"><button class="close-dialog" data-close="helpDialog" aria-label="关闭">×</button><p class="eyebrow">快速上手</p><h2>把零件放到正确的位置。</h2><p>选择训练模式并开始实验。点击右侧零件卡片或实验台上的零件，半透明轮廓表示该零件的目标位置。</p><div class="help-steps"><div><b>01</b><strong>定位</strong><p>左键拖动零件在水平面移动；W / A / S / D 微调平面，R / F 调整高度。按住 Shift 时每步变为 50 mm。</p></div><div><b>02</b><strong>定向</strong><p>Q / E 按当前旋转轴每次转动 15°。默认 Y 轴；支架开孔与转轴同轴，绿色标识保持朝上。</p></div><div><b>03</b><strong>装配</strong><p>按 Enter 或“确认装配”。顺序、位置与姿态均符合后，零件自动吸附锁定。每次不合格提交计一次对应错误。</p></div></div><p><strong>合格条件：</strong>左右支架 → 转轴 → 左右锁紧盖；同阶段可交换先后。距离 ≤ 55 mm、姿态差 ≤ 12°。训练模式显示偏差，考核模式隐藏轮廓与偏差。</p><p><strong>评分：</strong>100 − 顺序错误 × 8 − 位置错误 × 3 − 姿态错误 × 3。超过 180 秒后，每满 30 秒再扣 2 分，时间最多扣 20 分，最低 0 分。只在完成全部五件后生成最终分数。</p><p><strong>VR：</strong>通过兼容浏览器、受信任的安全地址和头显进入。控制器扳机射线点选并抓取零件，移动和转动手柄后释放扳机提交。射线点击头显内面板，可开始、切换模式或重新开始。进入 VR 前请留出安全操作空间。没有兼容设备时可完整使用桌面模式。</p><p class="muted">这是教学原型：采用几何模型和容差吸附，没有刚体碰撞、受力计算或真实螺纹仿真。最近 5 次完整成绩只保存在当前浏览器；导出 JSON 可另行保存。使用配套本地服务，勿直接双击 HTML。</p><button class="primary" data-close="helpDialog">开始操作</button></dialog>
-  <dialog id="resultDialog"><button class="close-dialog" data-close="resultDialog" aria-label="关闭">×</button><p class="eyebrow">实验完成</p><h2>组件装配成功</h2><div class="result-score"><span id="finalScore">100</span><small>分</small></div><p id="resultSummary"></p><div id="resultDetails" class="result-details"></div><div class="button-row"><button id="resultExport" class="primary">导出本次记录</button><button data-close="resultDialog" class="outline">查看完成效果</button></div><p class="muted">此成绩反映本次教学规则下的操作表现。</p></dialog>
+
+  <dialog id="helpDialog">
+    <button class="close-dialog" data-close="helpDialog" aria-label="关闭">×</button>
+    <p class="eyebrow">快速上手与展示指南</p>
+    <h2>在三维空间中练习机械装配。</h2>
+    <p>演示或练习前，可先点击实验台工具栏中的<strong>“结构展示”</strong>，通过爆炸图滑块与三阶段分步动画直观观察组件结构；随后返回操作，选择训练或考核模式开始实验。</p>
+    <div class="help-steps">
+      <div>
+        <b>01</b>
+        <strong>定位与深度参考</strong>
+        <p>左键拖动零件在水平面移动；W / A / S / D 微调平面，R / F 调整高度（按住 Shift 为 50 mm）。训练模式下提供 3D 高度垂线、目标连线与同轴中心线辅助判断深度。</p>
+      </div>
+      <div>
+        <b>02</b>
+        <strong>定向与视角观察</strong>
+        <p>Q / E 绕当前轴每次转动 15°（默认 Y 轴）。对齐支架开孔与转轴中心线，使青绿色方向箭头与目标基准一致。右键环视、滚轮缩放，或使用全景/正视/侧视/俯视/聚焦快速切换视角。</p>
+      </div>
+      <div>
+        <b>03</b>
+        <strong>判定、动效与记录</strong>
+        <p>按 Enter 或“确认装配”提交。顺序、位置与姿态均合格时触发平滑入位动效与提示音；失败时给出具体纠错提示并计一次对应错误。完成后可导出结构化 JSON 记录。</p>
+      </div>
+    </div>
+    <p><strong>合格条件：</strong>左右支架 → 转轴 → 左右锁紧盖（同阶段左右可互换）；位置误差 ≤ 55 mm、姿态误差 ≤ 12°。训练模式显示全息目标轮廓、3D 引导线与实时容差进度条；考核模式隐藏全部空间与数值辅助并禁用结构展示。</p>
+    <p><strong>评分规则：</strong>100 − 顺序错误 × 8 − 位置错误 × 3 − 姿态错误 × 3。超过 180 秒后每满 30 秒扣 2 分（时间扣分上限 20 分，最低 0 分）。仅完成全部五件后生成最终成绩。</p>
+    <p><strong>WebXR 头显交互：</strong>通过兼容浏览器、安全上下文地址与 VR 头显进入。控制器射线可指向零件抓取或操作空间 3D 面板，支持手柄触觉脉冲反馈（需设备支持）；移动并转动手柄后松开扳机即触发提交。无兼容头显时可完整使用桌面端全部演示与训练功能。</p>
+    <p class="muted">教学原型边界说明：模型由 Three.js 程序化几何与 PBR 材质生成，采用容差吸附判定，未模拟刚体碰撞、受力分析或真实螺纹拧紧。工具栏“性能”面板反映当前桌面浏览器的 WebGL 帧率与绘制统计，不等同于实体头显性能。最近 5 次完整记录仅保存在当前浏览器本地存储，可随时清除或导出 JSON。</p>
+    <button class="primary" data-close="helpDialog">开始操作</button>
+  </dialog>
+
+  <dialog id="resultDialog">
+    <button class="close-dialog" data-close="resultDialog" aria-label="关闭">×</button>
+    <p class="eyebrow">实验完成</p>
+    <h2>组件装配成功</h2>
+    <div class="result-score"><span id="finalScore">100</span><small>分</small></div>
+    <p id="resultSummary"></p>
+    <div id="resultDetails" class="result-details"></div>
+    <div class="button-row">
+      <button id="resultExport" class="primary">导出本次记录</button>
+      <button data-close="resultDialog" class="outline">查看完成效果</button>
+    </div>
+    <p class="muted">此成绩反映本次教学规则下的操作表现，不代表工程公差或真人头显实测能力。</p>
+  </dialog>
+
   <script type="module" src="./app.js"></script>
 </body>
 </html>
